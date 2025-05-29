@@ -266,20 +266,7 @@ def main():
                 use_auto_priority = st.checkbox("🤖 Auto-detect urgency", value=True, 
                                                help="Let AI determine urgency from your description")
                 
-                if not use_auto_priority:
-                    priority_options = {
-                        "🔴 Critical - Emergency": 1,
-                        "🟠 High - Important": 2,
-                        "🟡 Normal - Standard": 3,
-                        "⚪ Low - Routine": 0,
-                    }
-                    priority_selection = st.selectbox("How urgent?", list(priority_options.keys()))
-                    priority = priority_options[priority_selection]
-                else:
-                    priority = auto_detect_priority(description)
-                    urgency_text = {1: "🔴 Critical", 2: "🟠 High", 3: "🟡 Normal", 0: "⚪ Low"}
-                    st.info(f"Auto-detected: {urgency_text.get(priority, '🔴 Critical')}")
-                
+
                 vehicle_encoded = st.number_input("🚗 Vehicle ID (if known)", 
                                                   min_value=9, max_value=1137, value=573,
                                                   help="Leave as default if unknown")
@@ -353,6 +340,20 @@ def main():
                 if not description.strip():
                     st.error("⚠️ Please tell us what's wrong with your vehicle!")
                     st.stop()
+
+                if use_auto_priority:
+                    priority = auto_detect_priority(description)
+                    urgency_text = {1: "🔴 Critical", 2: "🟠 High", 3: "🟡 Normal", 0: "⚪ Low"}
+                    st.info(f"Auto-detected urgency: {urgency_text.get(priority, '🔴 Critical')}")
+                else:
+                    priority_options = {
+                        "🔴 Critical - Emergency": 1,
+                        "🟠 High - Important": 2,
+                        "🟡 Normal - Standard": 3,
+                        "⚪ Low - Routine": 0,
+                    }
+                    priority_selection = st.selectbox("How urgent?", list(priority_options.keys()))
+                    priority = priority_options[priority_selection]
 
                 # Show simplified AI analysis (no technical details)
                 detected_priority = {1: "High Priority", 2: "Medium Priority", 3: "Normal", 0: "Low Priority"}
