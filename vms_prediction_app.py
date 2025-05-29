@@ -285,47 +285,49 @@ def main():
                                                   help="Leave as default if unknown")
             
             # Collapsible advanced options
-            with st.expander("⚙️ Advanced Options (Optional)", expanded=False):
-                st.markdown("*These will be auto-filled with smart defaults if not specified*")
+            with st.expander("⚙️ More Details (Optional)", expanded=False):
+                st.markdown("*Only change these if you know specific details*")
                 
                 col3, col4 = st.columns(2)
                 
                 with col3:
                     # Auto-estimate service count based on odometer
                     estimated_services = max(2, min(2704, odometer // 15000))  # Rough estimate
-                    service_count = st.number_input("🔧 Previous Services", 
+                    service_count = st.number_input("🔧 How many times serviced before?", 
                                                     min_value=2, max_value=2704, 
                                                     value=estimated_services,
-                                                    help=f"Auto-estimated: {estimated_services} based on mileage")
+                                                    help=f"We estimated {estimated_services} based on your mileage")
                     
                     building_options = {
-                        "Building 2 - Main Depot": 2,      # Most common
-                        "Building 3 - Branch Office": 3,
-                        "Building 1 - Service Depot": 1,
-                        "Building 6 - Workshop": 6,
-                        "Building 7 - Maintenance": 7,
-                        "Building 0 - Other Location": 0,
+                        "Main Workshop": 2,      # Most common
+                        "Branch Workshop": 3,
+                        "Service Center": 1,
+                        "Repair Shop": 6,
+                        "Maintenance Bay": 7,
+                        "Other Location": 0,
                     }
-                    building_selection = st.selectbox("📍 Location", list(building_options.keys()))
+                    building_selection = st.selectbox("📍 Where will you take it?", list(building_options.keys()))
                     building_encoded = building_options[building_selection]
                 
                 with col4:
-                    status_encoded = 3  # Default to "Completed" (99.4% of training data)
-                    st.info("📊 Status: Auto-set to 'Completed' (most common)")
-                    
-                    # Auto-detect request type based on description
-                    def auto_detect_mrtype(desc):
-                        desc_lower = desc.lower()
-                        if any(word in desc_lower for word in ['service', 'servis', 'maintenance', 'check']):
-                            return 0  # Most common type
-                        elif any(word in desc_lower for word in ['repair', 'fix', 'broken', 'rosak', 'baiki']):
-                            return 1
-                        else:
-                            return 0  # Default to most common
-                    
-                    mrtype_encoded = auto_detect_mrtype(description)
-                    mrtype_text = {0: "Type 0 - Most Common", 1: "Type 1 - Common", 2: "Type 2 - Less Common"}
-                    st.info(f"🛠️ Request Type: Auto-detected as {mrtype_text.get(mrtype_encoded, 'Type 0')}")
+                    st.markdown("**ℹ️ Additional Info**")
+                    st.write("✅ Request type and status are automatically determined from your problem description.")
+                    st.write("💡 This helps our AI give you the most accurate diagnosis.")
+            
+            # Hidden fields - auto-detected but not shown to user
+            status_encoded = 3  # Default to "Completed" (99.4% of training data)
+            
+            # Auto-detect request type based on description
+            def auto_detect_mrtype(desc):
+                desc_lower = desc.lower()
+                if any(word in desc_lower for word in ['service', 'servis', 'maintenance', 'check']):
+                    return 0  # Most common type
+                elif any(word in desc_lower for word in ['repair', 'fix', 'broken', 'rosak', 'baiki']):
+                    return 1
+                else:
+                    return 0  # Default to most common
+            
+            mrtype_encoded = auto_detect_mrtype(description)
             
             # Timing (simplified)
             st.markdown("**📅 When do you need this done?**")
@@ -352,9 +354,12 @@ def main():
                     st.error("⚠️ Please tell us what's wrong with your vehicle!")
                     st.stop()
 
-                # Show what was auto-detected
-                st.info("🤖 **Auto-detected settings:** " + 
-                       f"Priority={priority}, Services≈{service_count}, Type={mrtype_encoded}")
+                # Show simplified AI analysis (no technical details)
+                detected_priority = {1: "High Priority", 2: "Medium Priority", 3: "Normal", 0: "Low Priority"}
+                
+                st.info("🤖 **AI Analysis:** " + 
+                       f"Urgency: {detected_priority.get(priority, 'High')}, " +
+                       f"Estimated {service_count} previous services")
 
                 # Prepare data
                 request_datetime = datetime.combine(request_date, request_time)
