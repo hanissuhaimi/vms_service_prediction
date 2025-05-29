@@ -263,9 +263,11 @@ def main():
                         return 1  # Default to Critical (most common in training)
                 
                 # Simplified priority
-                use_auto_priority = st.checkbox("🤖 Auto-detect urgency", value=True, 
-                                               help="Let AI determine urgency from your description")
-                
+                use_auto_priority = st.checkbox("🤖 Auto-detect urgency", value=True,
+                                                help="Let AI determine urgency from your description")
+
+                priority = None  # Placeholder
+
                 if not use_auto_priority:
                     priority_options = {
                         "🔴 Critical - Emergency": 1,
@@ -274,13 +276,8 @@ def main():
                         "⚪ Low - Routine": 0,
                     }
                     priority_selection = st.selectbox("How urgent?", list(priority_options.keys()))
-                    priority = priority_options[priority_selection]
-                else:
-                    priority = auto_detect_priority(description)
-                    urgency_text = {1: "🔴 Critical", 2: "🟠 High", 3: "🟡 Normal", 0: "⚪ Low"}
-                    st.info(f"Auto-detected: {urgency_text.get(priority, '🔴 Critical')}")
 
-                vehicle_encoded = st.number_input("🚗 Vehicle ID (if known)", 
+                vehicle_encoded = st.number_input("🚗 Vehicle ID (if known)",
                                                   min_value=9, max_value=1137, value=573,
                                                   help="Leave as default if unknown")
             
@@ -350,6 +347,13 @@ def main():
                                                   use_container_width=True)
 
             if submitted:
+                if use_auto_priority:
+                    priority = auto_detect_priority(description)
+                    urgency_text = {1: "🔴 Critical", 2: "🟠 High", 3: "🟡 Normal", 0: "⚪ Low"}
+                    st.info(f"Auto-detected urgency: {urgency_text.get(priority, '🔴 Critical')}")
+                else:
+                    priority = priority_options[priority_selection]
+
                 if not description.strip():
                     st.error("⚠️ Please tell us what's wrong with your vehicle!")
                     st.stop()
