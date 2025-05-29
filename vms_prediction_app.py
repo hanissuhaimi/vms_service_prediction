@@ -1,12 +1,12 @@
-import streamlit as st
 import pickle
 import pandas as pd
 import numpy as np
-from datetime import datetime, date, time
+from datetime import datetime, date, timedelta
 import warnings
 import plotly.express as px
 import plotly.graph_objects as go
 from io import StringIO
+import streamlit as st
 
 warnings.filterwarnings('ignore')
 
@@ -223,99 +223,138 @@ def main():
     tab1, tab2, tab3 = st.tabs(["🔍 Single Prediction", "📊 Batch Prediction", "📈 Model Information"])
 
     with tab1:
-        st.header("Single Service Request Prediction")
+        st.header("New Maintenance Request")
 
         # Initialize predictions history if not exists
         if 'predictions_history' not in st.session_state:
             st.session_state.predictions_history = []
 
         with st.form("prediction_form"):
-            st.subheader("Vehicle & Request Details")
-
+            st.subheader("🚗 Quick Maintenance Request")
+            st.markdown("*Just fill in what you know - we'll estimate the rest!*")
+            
+            # Primary inputs - what users typically know
             col1, col2 = st.columns(2)
-
+            
             with col1:
-                st.markdown("**🚨 Request Priority**")
-                priority_options = {
-                    "🔴 Critical - Emergency (1)": 1,
-                    "🟠 High - Important (2)": 2,
-                    "🟡 Normal - Standard (3)": 3,
-                    "🔵 Low - Minor (4)": 4,
-                    "⚪ Lowest - Routine (5)": 5
-                }
-                priority_selection = st.selectbox("How urgent is this?", list(priority_options.keys()), index=2)
-                priority = priority_options[priority_selection]
-
-                vehicle_encoded = st.number_input("🚗 Vehicle Number", min_value=1, value=10,
-                                                  help="Enter your vehicle ID")
-
-                service_count = st.number_input("🔧 Previous Services", min_value=0, value=5,
-                                                help="How many times has this vehicle been serviced?")
-
-                odometer = st.number_input("📏 Current Mileage", min_value=0, value=45000,
-                                           help="Current odometer reading")
-
+                st.markdown("**📝 What's the problem?**")
+                description = st.text_area(
+                    "Describe the issue:",
+                    placeholder="Example: brake noise, flat tire, engine won't start, routine service, oil change...",
+                    height=100,
+                    help="Describe in your own words - English or Bahasa Malaysia"
+                )
+                
+                odometer = st.number_input("📏 Current Mileage (KM)", 
+                                           min_value=1, value=200000,
+                                           help="What's showing on your odometer?")
+            
             with col2:
-                st.markdown("**🏢 Location & Status**")
-
-                building_options = {
-                    "Main Depot (1)": 1,
-                    "North Branch (2)": 2,
-                    "South Workshop (3)": 3,
-                    "East Facility (4)": 4,
-                    "West Office (5)": 5
-                }
-                building_selection = st.selectbox("📍 Vehicle Location", list(building_options.keys()))
-                building_encoded = building_options[building_selection]
-
-                status_options = {
-                    "📝 New Request (1)": 1,
-                    "⏳ In Progress (2)": 2,
-                    "⏸️ On Hold (3)": 3,
-                    "✅ Completed (4)": 4
-                }
-                status_selection = st.selectbox("📊 Current Status", list(status_options.keys()))
-                status_encoded = status_options[status_selection]
-
-                request_type_options = {
-                    "🔧 Preventive - Scheduled maintenance (1)": 1,
-                    "⚠️ Corrective - Fix broken parts (2)": 2,
-                    "🚨 Emergency - Urgent repair (3)": 3,
-                    "🔍 Inspection - Safety check (4)": 4,
-                    "⚙️ Modification - Upgrades (5)": 5
-                }
-                mrtype_selection = st.selectbox("🛠️ Request Type", list(request_type_options.keys()))
-                mrtype_encoded = request_type_options[mrtype_selection]
-
-            st.markdown("**📅 Timing Information**")
-            col3, col4, col5 = st.columns(3)
-
-            with col3:
-                request_date = st.date_input("📅 Request Date", value=date.today())
-            with col4:
-                request_time = st.time_input("🕐 Request Time", value=datetime.now().time())
+                st.markdown("**🚗 Vehicle Info (Optional)**")
+                
+                # Auto-detect priority based on description
+                def auto_detect_priority(desc):
+                    desc_lower = desc.lower()
+                    if any(word in desc_lower for word in ['emergency', 'urgent', 'breakdown', 'tidak boleh', 'rosak teruk', 'accident']):
+                        return 1  # Critical
+                    elif any(word in desc_lower for word in ['noise', 'problem', 'issue', 'bunyi', 'masalah']):
+                        return 2  # High
+                    else:
+                        return 1  # Default to Critical (most common in training)
+                
+                # Simplified priority
+                use_auto_priority = st.checkbox("🤖 Auto-detect urgency", value=True, 
+                                               help="Let AI determine urgency from your description")
+                
+                if not use_auto_priority:
+                    priority_options = {
+                        "🔴 Critical - Emergency": 1,
+                        "🟠 High - Important": 2,
+                        "🟡 Normal - Standard": 3,
+                        "⚪ Low - Routine": 0,
+                    }
+                    priority_selection = st.selectbox("How urgent?", list(priority_options.keys()))
+                    priority = priority_options[priority_selection]
+                else:
+                    priority = auto_detect_priority(description)
+                    urgency_text = {1: "🔴 Critical", 2: "🟠 High", 3: "🟡 Normal", 0: "⚪ Low"}
+                    st.info(f"Auto-detected: {urgency_text.get(priority, '🔴 Critical')}")
+                
+                vehicle_encoded = st.number_input("🚗 Vehicle ID (if known)", 
+                                                  min_value=9, max_value=1137, value=573,
+                                                  help="Leave as default if unknown")
+            
+            # Collapsible advanced options
+            with st.expander("⚙️ Advanced Options (Optional)", expanded=False):
+                st.markdown("*These will be auto-filled with smart defaults if not specified*")
+                
+                col3, col4 = st.columns(2)
+                
+                with col3:
+                    # Auto-estimate service count based on odometer
+                    estimated_services = max(2, min(2704, odometer // 15000))  # Rough estimate
+                    service_count = st.number_input("🔧 Previous Services", 
+                                                    min_value=2, max_value=2704, 
+                                                    value=estimated_services,
+                                                    help=f"Auto-estimated: {estimated_services} based on mileage")
+                    
+                    building_options = {
+                        "Building 2 - Main Depot": 2,      # Most common
+                        "Building 3 - Branch Office": 3,
+                        "Building 1 - Service Depot": 1,
+                        "Building 6 - Workshop": 6,
+                        "Building 7 - Maintenance": 7,
+                        "Building 0 - Other Location": 0,
+                    }
+                    building_selection = st.selectbox("📍 Location", list(building_options.keys()))
+                    building_encoded = building_options[building_selection]
+                
+                with col4:
+                    status_encoded = 3  # Default to "Completed" (99.4% of training data)
+                    st.info("📊 Status: Auto-set to 'Completed' (most common)")
+                    
+                    # Auto-detect request type based on description
+                    def auto_detect_mrtype(desc):
+                        desc_lower = desc.lower()
+                        if any(word in desc_lower for word in ['service', 'servis', 'maintenance', 'check']):
+                            return 0  # Most common type
+                        elif any(word in desc_lower for word in ['repair', 'fix', 'broken', 'rosak', 'baiki']):
+                            return 1
+                        else:
+                            return 0  # Default to most common
+                    
+                    mrtype_encoded = auto_detect_mrtype(description)
+                    mrtype_text = {0: "Type 0 - Most Common", 1: "Type 1 - Common", 2: "Type 2 - Less Common"}
+                    st.info(f"🛠️ Request Type: Auto-detected as {mrtype_text.get(mrtype_encoded, 'Type 0')}")
+            
+            # Timing (simplified)
+            st.markdown("**📅 When do you need this done?**")
+            col5, col6 = st.columns(2)
+            
             with col5:
-                response_days = st.number_input("⏰ Expected Days", min_value=0, value=2,
-                                                help="How many days should this take?")
-
-            st.markdown("**📝 Problem Description**")
-            description = st.text_area(
-                "Describe the maintenance issue:",
-                placeholder="Example: Engine making grinding noise when starting, brake pedal feels soft, routine oil change needed...",
-                height=100,
-                help="Be specific - this helps improve prediction accuracy"
-            )
+                request_date = st.date_input("📅 Request Date", value=date.today())
+            with col6:
+                response_days = st.number_input("⏰ How urgent? (days)", min_value=0, value=1,
+                                                help="0 = Today, 1 = Tomorrow, etc.")
+            
+            # Hidden fields set to defaults
+            request_time = datetime.now().time()
 
             # Center the submit button
-            col1, col2, col3 = st.columns([1, 1, 1])
+            st.markdown("---")
+            col1, col2, col3 = st.columns([1, 2, 1])
             with col2:
-                submitted = st.form_submit_button("🔮 Get Maintenance Prediction", type="primary",
+                submitted = st.form_submit_button("🔮 Analyze My Vehicle Problem", type="primary",
                                                   use_container_width=True)
 
             if submitted:
                 if not description.strip():
-                    st.error("⚠️ Please describe the maintenance issue!")
+                    st.error("⚠️ Please tell us what's wrong with your vehicle!")
                     st.stop()
+
+                # Show what was auto-detected
+                st.info("🤖 **Auto-detected settings:** " + 
+                       f"Priority={priority}, Services≈{service_count}, Type={mrtype_encoded}")
 
                 # Prepare data
                 request_datetime = datetime.combine(request_date, request_time)
@@ -337,90 +376,171 @@ def main():
                     result = st.session_state.prediction_service.predict(request_data, return_probabilities=True)
 
                 if result:
-                    st.markdown("---")
-                    st.subheader("🎯 Prediction Results")
-
-                    # Main result in a colored box
+                    # Get prediction details
                     category = result['predictions'][0]
                     confidence_level = result['confidence_levels'][0] if 'confidence_levels' in result else 'Unknown'
                     confidence_score = result['confidence_scores'][0] if 'confidence_scores' in result else 0
 
-                    # Color based on confidence
-                    if confidence_level == 'High':
-                        box_color = "#d4edda"  # Light green
-                        border_color = "#28a745"  # Green
-                    elif confidence_level == 'Medium':
-                        box_color = "#fff3cd"  # Light yellow
-                        border_color = "#ffc107"  # Yellow
-                    else:
-                        box_color = "#f8d7da"  # Light red
-                        border_color = "#dc3545"  # Red
+                    st.markdown("---")
+                    st.subheader("🎯 Your Vehicle Diagnosis")
 
+                    # Simple, clear result box
+                    if category == 'other':
+                        solution = "🔧 General Repair Needed"
+                        action = "Take to workshop for diagnosis and repair"
+                        time_needed = "1-2 days"
+                        cost_estimate = "RM 200 - RM 800"
+                    elif category == 'cleaning':
+                        solution = "🧽 Vehicle Cleaning Service"
+                        action = "Schedule vehicle washing and cleaning"
+                        time_needed = "Same day"
+                        cost_estimate = "RM 50 - RM 150"
+                    elif category == 'tire':
+                        solution = "🛞 Tire Service Required"
+                        action = "Check/replace tires, wheel alignment"
+                        time_needed = "Same day"
+                        cost_estimate = "RM 100 - RM 600"
+                    elif category == 'service':
+                        solution = "⚙️ Routine Maintenance"
+                        action = "Schedule regular service (oil, filters, check-up)"
+                        time_needed = "Half day"
+                        cost_estimate = "RM 200 - RM 500"
+                    elif category == 'engine':
+                        solution = "🚗 Engine Repair"
+                        action = "Engine diagnosis and repair needed"
+                        time_needed = "1-3 days"
+                        cost_estimate = "RM 400 - RM 2000"
+                    elif category == 'mechanical':
+                        solution = "🔧 Mechanical Repair"
+                        action = "Mechanical parts need repair/replacement"
+                        time_needed = "1-2 days"
+                        cost_estimate = "RM 300 - RM 1200"
+                    elif category == 'brake_system':
+                        solution = "🛑 Brake System Service"
+                        action = "URGENT: Brake inspection and repair"
+                        time_needed = "Same day"
+                        cost_estimate = "RM 200 - RM 800"
+                    elif category == 'hydraulic':
+                        solution = "💧 Hydraulic System Repair"
+                        action = "Check hydraulic fluid and system"
+                        time_needed = "1-2 days"
+                        cost_estimate = "RM 300 - RM 1000"
+                    elif category == 'air_system':
+                        solution = "💨 Air System Service"
+                        action = "Air brake/suspension system check"
+                        time_needed = "1 day"
+                        cost_estimate = "RM 250 - RM 700"
+                    elif category == 'electrical':
+                        solution = "⚡ Electrical System Repair"
+                        action = "Check wiring, battery, electrical components"
+                        time_needed = "Half day to 1 day"
+                        cost_estimate = "RM 150 - RM 600"
+                    elif category == 'body':
+                        solution = "🚛 Body Work Required"
+                        action = "Vehicle body repair or maintenance"
+                        time_needed = "1-3 days"
+                        cost_estimate = "RM 300 - RM 1500"
+                    else:
+                        solution = "🔍 Need Further Inspection"
+                        action = "Take to workshop for detailed diagnosis"
+                        time_needed = "1 day"
+                        cost_estimate = "RM 200 - RM 600"
+
+                    # Main result card
                     st.markdown(f"""
                     <div style="
-                        background-color: {box_color};
-                        border: 2px solid {border_color};
-                        border-radius: 10px;
-                        padding: 20px;
-                        margin: 10px 0;
+                        background-color: #e8f4f8;
+                        border: 3px solid #2196F3;
+                        border-radius: 15px;
+                        padding: 25px;
+                        margin: 20px 0;
                         text-align: center;
                     ">
-                        <h3 style="margin: 0; color: #333;">🔧 {category} Maintenance</h3>
-                        <p style="margin: 10px 0 0 0; font-size: 16px;">
-                            Confidence: <strong>{confidence_level}</strong> ({confidence_score:.1%})
-                        </p>
+                        <h2 style="margin: 0; color: #1976D2;">{solution}</h2>
+                        <h3 style="margin: 10px 0; color: #424242;">{action}</h3>
                     </div>
                     """, unsafe_allow_html=True)
 
-                    # Explanation of result
-                    explanations = {
-                        'Preventive': "✅ **Scheduled maintenance** - Regular upkeep to prevent future problems",
-                        'Corrective': "🔧 **Repair work** - Fixing something that's broken or not working properly",
-                        'Emergency': "🚨 **Urgent repair** - Needs immediate attention for safety or operation",
-                        'Inspection': "🔍 **Check-up work** - Examining vehicle for safety or compliance",
-                        'Modification': "⚙️ **Upgrade work** - Improving or changing vehicle features"
-                    }
+                    # Key information in simple cards
+                    col1, col2, col3 = st.columns(3)
+                    
+                    with col1:
+                        st.markdown(f"""
+                        <div style="background-color: #fff3e0; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h3 style="color: #f57c00; margin: 0;">⏰ Time Needed</h3>
+                            <h2 style="color: #e65100; margin: 10px 0;">{time_needed}</h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col2:
+                        st.markdown(f"""
+                        <div style="background-color: #e8f5e8; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h3 style="color: #388e3c; margin: 0;">💰 Estimated Cost</h3>
+                            <h2 style="color: #2e7d32; margin: 10px 0;">{cost_estimate}</h2>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    with col3:
+                        # Calculate next service
+                        next_service_km = ((odometer // 10000) + 1) * 10000
+                        km_until_service = next_service_km - odometer
+                        
+                        st.markdown(f"""
+                        <div style="background-color: #f3e5f5; padding: 20px; border-radius: 10px; text-align: center;">
+                            <h3 style="color: #7b1fa2; margin: 0;">🔧 Next Service</h3>
+                            <h2 style="color: #6a1b9a; margin: 10px 0;">{km_until_service:,} KM</h2>
+                            <p style="margin: 0; color: #8e24aa;">At {next_service_km:,} KM</p>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                    explanation = explanations.get(category, "Maintenance work needed")
-                    st.info(f"💡 **What this means:** {explanation}")
-
-                    # Confidence explanation
-                    if confidence_level == 'High':
-                        st.success("🎯 **High Confidence** - The AI is very sure about this prediction")
-                    elif confidence_level == 'Medium':
-                        st.warning(
-                            "⚖️ **Medium Confidence** - The prediction is likely correct, but double-check details")
+                    # Quick recommendations based on the issue
+                    st.markdown("### 💡 What You Should Do:")
+                    
+                    if category in ['brake_system', 'engine'] or 'emergency' in description.lower():
+                        st.error("🚨 **URGENT**: This is a safety issue. Get it fixed immediately before driving!")
+                    elif category in ['tire', 'mechanical']:
+                        st.warning("⚠️ **IMPORTANT**: Schedule repair soon to avoid further damage.")
                     else:
-                        st.error("🤔 **Low Confidence** - The AI is uncertain, consider consulting a maintenance expert")
+                        st.info("✅ **ROUTINE**: Can be scheduled at your convenience.")
 
-                    # Visualization of confidence (keeping the original chart)
-                    if 'probabilities' in result:
-                        probs = result['probabilities'][0]
-                        classes = st.session_state.prediction_service.model_objects['classes']
+                    # Simple next steps
+                    st.markdown("### 📋 Next Steps:")
+                    if category == 'cleaning':
+                        st.write("1. 🚿 Go to vehicle wash bay")
+                        st.write("2. 🧽 Request interior and exterior cleaning")
+                        st.write("3. ✅ Inspect vehicle after cleaning")
+                    elif category in ['brake_system', 'engine']:
+                        st.write("1. 🚨 Stop driving if unsafe")
+                        st.write("2. 📞 Call workshop immediately")
+                        st.write("3. 🔧 Schedule emergency repair")
+                    elif category == 'tire':
+                        st.write("1. 🛞 Check tire condition and pressure")
+                        st.write("2. 🔧 Replace if damaged or worn")
+                        st.write("3. ⚖️ Check wheel alignment")
+                    else:
+                        st.write("1. 📞 Call workshop to book appointment")
+                        st.write("2. 🚗 Bring vehicle for inspection")
+                        st.write("3. ✅ Follow mechanic's recommendations")
 
-                        fig = px.bar(
-                            x=classes,
-                            y=probs,
-                            title="Prediction Probabilities",
-                            labels={'x': 'Categories', 'y': 'Probability'}
-                        )
-                        fig.update_layout(showlegend=False)
-                        st.plotly_chart(fig, use_container_width=True)
+                    # Show confidence if high
+                    if confidence_score >= 0.7:
+                        st.success(f"🎯 **AI is {confidence_score:.0%} confident** about this diagnosis")
+                    else:
+                        st.warning(f"🤔 **AI is {confidence_score:.0%} confident** - recommend getting a second opinion")
 
-                    # Add to history
+                    # Add to history with simple format
                     history_entry = {
                         'Time': datetime.now().strftime("%H:%M"),
-                        'Vehicle': vehicle_encoded,
-                        'Category': category,
-                        'Confidence': confidence_level,
-                        'Priority': priority_selection.split(' (')[0],  # Just the text part
-                        'Description': description[:50] + "..." if len(description) > 50 else description
+                        'Vehicle': vehicle_encoded,  
+                        'Issue': solution,
+                        'Cost': cost_estimate,
+                        'Time Needed': time_needed
                     }
                     st.session_state.predictions_history.append(history_entry)
-
-                    st.success("✅ Prediction saved to history!")
+                    
+                    st.success("✅ Diagnosis saved to your history!")
                 else:
-                    st.error("❌ Sorry, couldn't make prediction. Please check your inputs and try again.")
+                    st.error("❌ Sorry, couldn't analyze your vehicle problem. Please try again with more details.")
 
     with tab2:
         st.header("Batch Prediction")
@@ -496,19 +616,19 @@ def main():
         # Sample data download
         st.subheader("Need a sample file?")
         sample_data = {
-            'Priority': [1, 2, 3],
-            'service_count': [5, 8, 3],
-            'Building_encoded': [1, 2, 1],
-            'Vehicle_encoded': [10, 15, 8],
-            'Status_encoded': [2, 1, 3],
-            'MrType_encoded': [3, 2, 1],
+            'Priority': [1, 2, 0],
+            'service_count': [500, 800, 300],
+            'Building_encoded': [2, 3, 1],
+            'Vehicle_encoded': [573, 750, 400],
+            'Status_encoded': [3, 3, 3],
+            'MrType_encoded': [0, 1, 2],
             'request_date': ['2024-01-15 10:30:00', '2024-01-16 14:00:00', '2024-01-17 09:15:00'],
-            'response_days': [2, 1, 3],
-            'Odometer': [45000, 67000, 23000],
+            'response_days': [1, 1, 2],
+            'Odometer': [200000, 350000, 150000],
             'Description': [
-                'Engine making unusual noise, needs inspection',
-                'Brake system maintenance required',
-                'Regular maintenance check'
+                'adjust brake',
+                'tayar pancit - flat tire needs replacement',
+                'cuci lori - routine cleaning service'
             ]
         }
         sample_df = pd.DataFrame(sample_data)
